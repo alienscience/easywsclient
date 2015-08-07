@@ -29,11 +29,14 @@ class WebSocket {
     // Interfaces:
     virtual ~WebSocket() { }
     virtual void poll(int timeout = 0) = 0; // timeout in milliseconds
+
+    // Send functions below should be threadsafe
     virtual void send(const std::string& message) = 0;
     virtual void sendBinary(const std::string& message) = 0;
     virtual void sendBinary(const std::vector<uint8_t>& message) = 0;
     virtual void sendPing() = 0;
     virtual void close() = 0;
+
     virtual readyStateValues getReadyState() const = 0;
 
     template<class Callable>

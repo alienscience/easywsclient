@@ -71,6 +71,8 @@
 
 #include <vector>
 #include <string>
+#include <mutex>
+#include <atomic>
 
 #include "easywsclient.hpp"
 
@@ -169,8 +171,10 @@ class _RealWebSocket : public easywsclient::WebSocket
     std::vector<uint8_t> txbuf;
     std::vector<uint8_t> receivedData;
 
+    std::mutex txbufMutex;
+
     socket_t sockfd;
-    readyStateValues readyState;
+    std::atomic<readyStateValues> readyState;
     bool useMask;
 
     _RealWebSocket(socket_t sockfd, bool useMask) : sockfd(sockfd), readyState(OPEN), useMask(useMask) {
@@ -178,6 +182,11 @@ class _RealWebSocket : public easywsclient::WebSocket
 
     readyStateValues getReadyState() const {
       return readyState;
+    }
+
+    bool haveTxData() {
+        std::unique_lock<std::mutex> lock(txbufMutex);
+        return !txbuf.empty();
     }
 
     void poll(int timeout) { // timeout in milliseconds
@@ -195,7 +204,9 @@ class _RealWebSocket : public easywsclient::WebSocket
             FD_ZERO(&rfds);
             FD_ZERO(&wfds);
             FD_SET(sockfd, &rfds);
-            if (txbuf.size()) { FD_SET(sockfd, &wfds); }
+            if (haveTxData()) {
+                    FD_SET(sockfd, &wfds);
+            }
             select(sockfd + 1, &rfds, &wfds, NULL, &tv);
         }
         while (true) {
@@ -220,23 +231,30 @@ class _RealWebSocket : public easywsclient::WebSocket
                 rxbuf.resize(N + ret);
             }
         }
-        while (txbuf.size()) {
-            int ret = ::send(sockfd, (char*)&txbuf[0], txbuf.size(), 0);
-            if (false) { } // ??
-            else if (ret < 0 && (socketerrno == SOCKET_EWOULDBLOCK || socketerrno == SOCKET_EAGAIN_EINPROGRESS)) {
+        // Transmit
+        while (true) {
+            int sent;
+            {
+                std::unique_lock<std::mutex> lock(txbufMutex);
+                if (txbuf.empty()) {
+                    break;
+                }
+                sent = ::send(sockfd, (char*)&txbuf[0], txbuf.size(), 0);
+                if (sent > 0) {
+                    txbuf.erase(txbuf.begin(), txbuf.begin() + sent);
+                }
+            }
+            if (sent < 0 && (socketerrno == SOCKET_EWOULDBLOCK || socketerrno == SOCKET_EAGAIN_EINPROGRESS)) {
                 break;
             }
-            else if (ret <= 0) {
+            else if (sent <= 0) {
                 closesocket(sockfd);
                 readyState = CLOSED;
-                fputs(ret < 0 ? "Connection error!\n" : "Connection closed!\n", stderr);
+                fputs(sent < 0 ? "Connection error!\n" : "Connection closed!\n", stderr);
                 break;
             }
-            else {
-                txbuf.erase(txbuf.begin(), txbuf.begin() + ret);
-            }
         }
-        if (!txbuf.size() && readyState == CLOSING) {
+        if (readyState == CLOSING) {
             closesocket(sockfd);
             readyState = CLOSED;
         }
@@ -363,8 +381,8 @@ class _RealWebSocket : public easywsclient::WebSocket
         // number generator, to mitigate attacks on non-WebSocket friendly
         // middleware:
         const uint8_t masking_key[4] = { 0x12, 0x34, 0x56, 0x78 };
-        // TODO: consider acquiring a lock on txbuf...
-        if (readyState == CLOSING || readyState == CLOSED) { return; }
+        readyStateValues st = readyState;
+        if (st == CLOSING || st == CLOSED) { return; }
         std::vector<uint8_t> header;
         header.assign(2 + (message_size >= 126 ? 2 : 0) + (message_size >= 65536 ? 6 : 0) + (useMask ? 4 : 0), 0);
         header[0] = 0x80 | type;
@@ -407,19 +425,28 @@ class _RealWebSocket : public easywsclient::WebSocket
             }
         }
         // N.B. - txbuf will keep growing until it can be transmitted over the socket:
-        txbuf.insert(txbuf.end(), header.begin(), header.end());
-        txbuf.insert(txbuf.end(), message_begin, message_end);
-        if (useMask) {
-            for (size_t i = 0; i != message_size; ++i) { *(txbuf.end() - message_size + i) ^= masking_key[i&0x3]; }
+        {
+            std::unique_lock<std::mutex> lock(txbufMutex);
+            txbuf.insert(txbuf.end(), header.begin(), header.end());
+            txbuf.insert(txbuf.end(), message_begin, message_end);
+            if (useMask) {
+                for (size_t i = 0; i != message_size; ++i) {
+                    *(txbuf.end() - message_size + i) ^= masking_key[i&0x3];
+                }
+            }
         }
     }
 
     void close() {
-        if(readyState == CLOSING || readyState == CLOSED) { return; }
+        readyStateValues st = readyState;
+        if(st == CLOSING || st == CLOSED) { return; }
         readyState = CLOSING;
         uint8_t closeFrame[6] = {0x88, 0x80, 0x00, 0x00, 0x00, 0x00}; // last 4 bytes are a masking key
         std::vector<uint8_t> header(closeFrame, closeFrame+6);
-        txbuf.insert(txbuf.end(), header.begin(), header.end());
+        {
+            std::unique_lock<std::mutex> lock(txbufMutex);
+            txbuf.insert(txbuf.end(), header.begin(), header.end());
+        }
     }
 
 };
