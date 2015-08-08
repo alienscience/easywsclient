@@ -76,9 +76,6 @@
 
 #include "easywsclient.hpp"
 
-using easywsclient::Callback_Imp;
-using easywsclient::BytesCallback_Imp;
-
 namespace { // private module-only namespace
 
 socket_t hostname_connect(const std::string& hostname, int port) {
@@ -122,8 +119,8 @@ class _DummyWebSocket : public easywsclient::WebSocket
     void sendPing() { }
     void close() { } 
     readyStateValues getReadyState() const { return CLOSED; }
-    void _dispatch(Callback_Imp & callable) { }
-    void _dispatchBinary(BytesCallback_Imp& callable) { }
+    void dispatch(std::function<void(const std::string&)> callback) {}
+    void dispatchBinary(std::function<void(const std::vector<uint8_t>&)> callback) {}
 };
 
 
@@ -268,28 +265,15 @@ class _RealWebSocket : public easywsclient::WebSocket
         }
     }
 
-    // Callable must have signature: void(const std::string & message).
-    // Should work with C functions, C++ functors, and C++11 std::function and
-    // lambda:
-    //template<class Callable>
-    //void dispatch(Callable callable)
-    virtual void _dispatch(Callback_Imp & callable) {
-        struct CallbackAdapter : public BytesCallback_Imp
-            // Adapt void(const std::string<uint8_t>&) to void(const std::string&)
-        {
-            Callback_Imp& callable;
-            CallbackAdapter(Callback_Imp& callable) : callable(callable) { }
-            void operator()(const std::vector<uint8_t>& message) {
-                std::string stringMessage(message.begin(), message.end());
-                callable(stringMessage);
-            }
-        };
-        CallbackAdapter bytesCallback(callable);
-        _dispatchBinary(bytesCallback);
+    void dispatch(std::function<void(const std::string&)> callback) {
+        dispatchBinary([callback](const std::vector<uint8_t>& message){
+            std::string stringMessage(message.begin(), message.end());
+            callback(stringMessage);
+        });
     }
 
-    virtual void _dispatchBinary(BytesCallback_Imp & callable) {
-        // TODO: consider acquiring a lock on rxbuf...
+    void dispatchBinary(std::function<void(const std::vector<uint8_t>&)> callback) {
+
         while (true) {
             wsheader_type ws;
             if (rxbuf.size() < 2) { return; /* Need at least 2 */ }
@@ -347,7 +331,7 @@ class _RealWebSocket : public easywsclient::WebSocket
                 if (ws.mask) { for (size_t i = 0; i != ws.N; ++i) { rxbuf[i+ws.header_size] ^= ws.masking_key[i&0x3]; } }
                 receivedData.insert(receivedData.end(), rxbuf.begin()+ws.header_size, rxbuf.begin()+ws.header_size+(size_t)ws.N);// just feed
                 if (ws.fin) {
-                    callable((const std::vector<uint8_t>) receivedData);
+                    callback((const std::vector<uint8_t>) receivedData);
                     receivedData.erase(receivedData.begin(), receivedData.end());
                     std::vector<uint8_t> ().swap(receivedData);// free memory
                 }

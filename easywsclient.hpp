@@ -10,18 +10,9 @@
 
 #include <string>
 #include <vector>
+#include <functional>
 
 namespace easywsclient {
-
-struct Callback_Imp {
-    virtual ~Callback_Imp() {}
-    virtual void operator()(const std::string& message) = 0;
-};
-
-struct BytesCallback_Imp {
-    virtual ~BytesCallback_Imp() {}
-    virtual void operator()(const std::vector<uint8_t>& message) = 0;
-};
 
 class WebSocket {
   public:
@@ -46,35 +37,8 @@ class WebSocket {
 
     virtual readyStateValues getReadyState() const = 0;
 
-    template<class Callable>
-    void dispatch(Callable callable)
-        // For callbacks that accept a string argument.
-    { // N.B. this is compatible with both C++11 lambdas, functors and C function pointers
-        struct _Callback : public Callback_Imp {
-            Callable& callable;
-            _Callback(Callable& callable) : callable(callable) { }
-            void operator()(const std::string& message) { callable(message); }
-        };
-        _Callback callback(callable);
-        _dispatch(callback);
-    }
-
-    template<class Callable>
-    void dispatchBinary(Callable callable)
-        // For callbacks that accept a std::vector<uint8_t> argument.
-    { // N.B. this is compatible with both C++11 lambdas, functors and C function pointers
-        struct _Callback : public BytesCallback_Imp {
-            Callable& callable;
-            _Callback(Callable& callable) : callable(callable) { }
-            void operator()(const std::vector<uint8_t>& message) { callable(message); }
-        };
-        _Callback callback(callable);
-        _dispatchBinary(callback);
-    }
-
-  protected:
-    virtual void _dispatch(Callback_Imp& callable) = 0;
-    virtual void _dispatchBinary(BytesCallback_Imp& callable) = 0;
+    virtual void dispatch(std::function<void(const std::string&)> callback) = 0;
+    virtual void dispatchBinary(std::function<void(const std::vector<uint8_t>&)> callback) = 0;
 };
 
 } // namespace easywsclient
