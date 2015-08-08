@@ -177,7 +177,15 @@ class _RealWebSocket : public easywsclient::WebSocket
     std::atomic<readyStateValues> readyState;
     bool useMask;
 
-    _RealWebSocket(socket_t sockfd, bool useMask) : sockfd(sockfd), readyState(OPEN), useMask(useMask) {
+    _RealWebSocket(socket_t sockfd, bool useMask) :
+        rxbuf(),
+        txbuf(),
+        receivedData(),
+        txbufMutex(),
+        sockfd(sockfd),
+        readyState(OPEN),
+        useMask(useMask)
+    {
     }
 
     readyStateValues getReadyState() const {

@@ -2,7 +2,7 @@ cmake_minimum_required (VERSION 2.8.11)
 project (EASYWSCLIENT)
 
 # Require C++11
-add_definitions(-std=c++11)
+add_definitions(-std=c++11 -Wall -Weffc++)
 
 add_library(easywsclient easywsclient.cpp easywsclient.hpp)
 
