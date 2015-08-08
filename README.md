@@ -1,3 +1,10 @@
+
+Personal Patches
+================
+
+1. Thread safe for multiple writer threads and a single reader thread.
+2. Because thread safety depends on C++11 the dispatch methods only support std::function and also require C++11.
+
 easywsclient
 ============
 
@@ -25,18 +32,6 @@ implementation file. It can serve as a cruft-free concise reference. You
 are most welcome to use this code as a reference for creating alternative
 implementations that may better suit your needs.
 
-News
-====
-
-*2014-12-06*
-Binary frames now supported. Closes issue #38.  Automated integration testing
-is now supported by running `make test`. The test suite expects GoogleTest to
-be installed at `/usr/src/gtest` (`apt-get install libgtest-dev` does the
-trick). The test suite uses C++14 (for lambda capture expressions), and thus it
-will not work on older compilers. Note that easywsclient itself still
-restricted to C++98/C++03, and will continue to build with older compilers.
-
-
 
 Usage
 =====
@@ -58,10 +53,7 @@ void poll(int timeout = 0); // timeout in milliseconds
 // Receive a message, and pass it to callable(). Really, this just looks at
 // a buffer (filled up by poll()) and decodes any messages in the buffer.
 // Callable must have signature: void(const std::string & message).
-// Should work with C functions, C++ functors, and C++11 std::function and
-// lambda:
-template<class Callable>
-void dispatch(Callable callable);
+void dispatch(callable);
 
 // Sends a TEXT type message (gets put into a buffer for poll() to send
 // later):
@@ -123,16 +115,6 @@ Example
 Threading
 =========
 
-This library is not thread safe. The user must take care to use locks if
-accessing an instance of `WebSocket` from multiple threads. If you need
-a quick threading library and don't have Boost or something else already,
-I recommend [TinyThread++](http://tinythreadpp.bitsnbites.eu/).
+Work is being done to make the library threadsafe for multiple writers and
+one single reader.
 
-Future Work
-===========
-
-(contributions appreciated!)
-
-* Parameterize the `pointer` type (especially for `shared_ptr`).
-* Support optional integration on top of an async (event-driven) library,
-  especially Asio.
