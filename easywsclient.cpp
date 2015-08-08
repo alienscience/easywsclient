@@ -123,6 +123,8 @@ class _DummyWebSocket : public easywsclient::WebSocket
     void dispatchBinary(std::function<void(const std::vector<uint8_t>&)> callback) {}
 };
 
+// TODO: check this
+static const size_t kPacketSize = 1500;
 
 class _RealWebSocket : public easywsclient::WebSocket
 {
@@ -200,28 +202,29 @@ class _RealWebSocket : public easywsclient::WebSocket
                 timeval tv = { timeout/1000, (timeout%1000) * 1000 };
                 select(0, NULL, NULL, NULL, &tv);
             }
-            return;
         }
-        if (timeout > 0) {
-            fd_set rfds;
-            fd_set wfds;
-            timeval tv = { timeout/1000, (timeout%1000) * 1000 };
-            FD_ZERO(&rfds);
-            FD_ZERO(&wfds);
-            FD_SET(sockfd, &rfds);
-            if (haveTxData()) {
-                    FD_SET(sockfd, &wfds);
-            }
-            select(sockfd + 1, &rfds, &wfds, NULL, &tv);
+        // Select
+        bool canRead = false;
+        bool canWrite = false;
+        fd_set rfds;
+        fd_set wfds;
+        timeval tv = { timeout/1000, (timeout%1000) * 1000 };
+        FD_ZERO(&rfds);
+        FD_ZERO(&wfds);
+        FD_SET(sockfd, &rfds);
+        if (haveTxData()) {
+            FD_SET(sockfd, &wfds);
         }
-        while (true) {
-            // FD_ISSET(0, &rfds) will be true
+        select(sockfd + 1, &rfds, &wfds, NULL, &tv);
+        canRead = FD_ISSET(sockfd, &rfds);
+        canWrite = FD_ISSET(sockfd, &wfds);
+        // Receive
+        while (canRead) {
             int N = rxbuf.size();
             ssize_t ret;
-            rxbuf.resize(N + 1500);
-            ret = recv(sockfd, (char*)&rxbuf[0] + N, 1500, 0);
-            if (false) { }
-            else if (ret < 0 && (socketerrno == SOCKET_EWOULDBLOCK || socketerrno == SOCKET_EAGAIN_EINPROGRESS)) {
+            rxbuf.resize(N + kPacketSize);
+            ret = recv(sockfd, (char*)&rxbuf[0] + N, kPacketSize, 0);
+            if (ret < 0 && (socketerrno == SOCKET_EWOULDBLOCK || socketerrno == SOCKET_EAGAIN_EINPROGRESS)) {
                 rxbuf.resize(N);
                 break;
             }
@@ -230,6 +233,7 @@ class _RealWebSocket : public easywsclient::WebSocket
                 closesocket(sockfd);
                 readyState = CLOSED;
                 fputs(ret < 0 ? "Connection error!\n" : "Connection closed!\n", stderr);
+                // TODO: return error
                 break;
             }
             else {
@@ -237,8 +241,8 @@ class _RealWebSocket : public easywsclient::WebSocket
             }
         }
         // Transmit
-        while (true) {
-            int sent;
+        while (canWrite) {
+            ssize_t sent;
             {
                 std::unique_lock<std::mutex> lock(txbufMutex);
                 if (txbuf.empty()) {
@@ -256,6 +260,7 @@ class _RealWebSocket : public easywsclient::WebSocket
                 closesocket(sockfd);
                 readyState = CLOSED;
                 fputs(sent < 0 ? "Connection error!\n" : "Connection closed!\n", stderr);
+                // TODO: return error
                 break;
             }
         }
