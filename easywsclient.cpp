@@ -202,6 +202,7 @@ class _RealWebSocket : public easywsclient::WebSocket
                 timeval tv = { timeout/1000, (timeout%1000) * 1000 };
                 select(0, NULL, NULL, NULL, &tv);
             }
+            return;
         }
         // Select
         bool canRead = false;
@@ -233,7 +234,6 @@ class _RealWebSocket : public easywsclient::WebSocket
                 closesocket(sockfd);
                 readyState = CLOSED;
                 fputs(ret < 0 ? "Connection error!\n" : "Connection closed!\n", stderr);
-                // TODO: return error
                 break;
             }
             else {
@@ -260,7 +260,6 @@ class _RealWebSocket : public easywsclient::WebSocket
                 closesocket(sockfd);
                 readyState = CLOSED;
                 fputs(sent < 0 ? "Connection error!\n" : "Connection closed!\n", stderr);
-                // TODO: return error
                 break;
             }
         }
@@ -327,9 +326,7 @@ class _RealWebSocket : public easywsclient::WebSocket
             if (rxbuf.size() < ws.header_size+ws.N) { return; /* Need: ws.header_size+ws.N - rxbuf.size() */ }
 
             // We got a whole message, now do something with it:
-            if (false) { }
-            else if (
-                   ws.opcode == wsheader_type::TEXT_FRAME 
+            if ( ws.opcode == wsheader_type::TEXT_FRAME
                 || ws.opcode == wsheader_type::BINARY_FRAME
                 || ws.opcode == wsheader_type::CONTINUATION
             ) {
