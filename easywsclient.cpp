@@ -76,7 +76,7 @@
 
 #include "easywsclient.hpp"
 
-namespace { // private module-only namespace
+namespace easywsclient {
 
 socket_t hostname_connect(const std::string& hostname, int port) {
     struct addrinfo hints;
@@ -523,12 +523,6 @@ easywsclient::WebSocket::pointer from_url(const std::string& url, bool useMask, 
     return easywsclient::WebSocket::pointer(new _RealWebSocket(sockfd, useMask));
 }
 
-} // end of module-only namespace
-
-
-
-namespace easywsclient {
-
 WebSocket::pointer WebSocket::create_dummy() {
     static pointer dummy = pointer(new _DummyWebSocket);
     return dummy;
@@ -536,11 +530,11 @@ WebSocket::pointer WebSocket::create_dummy() {
 
 
 WebSocket::pointer WebSocket::from_url(const std::string& url, const std::string& origin) {
-    return ::from_url(url, true, origin);
+    return easywsclient::from_url(url, true, origin);
 }
 
 WebSocket::pointer WebSocket::from_url_no_mask(const std::string& url, const std::string& origin) {
-    return ::from_url(url, false, origin);
+    return easywsclient::from_url(url, false, origin);
 }
 
 
