@@ -75,20 +75,20 @@ TEST_CASE("Text Frames Work")
     std::unique_ptr<WebSocket> ws(WebSocket::from_url("ws://localhost:8123/echoWithSize"));
     assert(ws);
     ws->send("four");
-    std::string message;
+    std::string messageOut;
     while (ws->getReadyState() != WebSocket::CLOSED) {
         bool gotMessage = false;
         ws->poll();
-        ws->dispatch([gotMessageOut=&gotMessage, messageOut=&message, ws=ws.get()](const std::string& message) {
-            *gotMessageOut = true;
-            *messageOut = message;
+        ws->dispatch([&gotMessage, &messageOut](const std::string& message) {
+            gotMessage = true;
+            messageOut = message;
         });
         if (gotMessage) {
             break;
         }
     }
-    REQUIRE(message == "4\nfour");
-    ws->close(); // hmmm... shouldn't this be RAII?
+    REQUIRE(messageOut == "4\nfour");
+    ws->close();
 }
 
 TEST_CASE("Long Text Frames Work")
@@ -118,21 +118,21 @@ TEST_CASE("Long Text Frames Work")
     v.emplace_back("65537", makeString(65537));
     for (auto i = v.begin(); i != v.end(); ++i) {
         ws->send(i->second);
-        std::string message;
+        std::string messageOut;
         while (ws->getReadyState() != WebSocket::CLOSED) {
             bool gotMessage = false;
             ws->poll();
-            ws->dispatch([gotMessageOut=&gotMessage, messageOut=&message, ws=ws.get()](const std::string& message) {
-                *gotMessageOut = true;
-                *messageOut = message;
+            ws->dispatch([&gotMessage, &messageOut](const std::string& message) {
+                gotMessage = true;
+                messageOut = message;
             });
             if (gotMessage) {
                 break;
             }
         }
-        REQUIRE(message == (i->first + "\n" + i->second) );
+        REQUIRE(messageOut == (i->first + "\n" + i->second) );
     }
-    ws->close(); // hmmm... shouldn't this be RAII?
+    ws->close();
 }
 
 TEST_CASE("Binary Frames Work")
@@ -140,19 +140,19 @@ TEST_CASE("Binary Frames Work")
     std::unique_ptr<WebSocket> ws(WebSocket::from_url("ws://localhost:8123/binaryEchoWithSize"));
     assert(ws);
     ws->sendBinary(std::vector<uint8_t>({1, 2, 3}));
-    std::vector<uint8_t> message;
+    std::vector<uint8_t> messageOut;
     while (ws->getReadyState() != WebSocket::CLOSED) {
         bool gotMessage = false;
         ws->poll();
-        ws->dispatchBinary([gotMessageOut=&gotMessage, messageOut=&message, ws=ws.get()](const std::vector<uint8_t>& message) {
-            *gotMessageOut = true;
-            *messageOut = message;
+        ws->dispatchBinary([&gotMessage, &messageOut](const std::vector<uint8_t>& message) {
+            gotMessage = true;
+            messageOut = message;
         });
         if (gotMessage) {
             break;
         }
     }
-    REQUIRE(message == std::vector<uint8_t>({0, 0, 0, 3, 1, 2, 3}));
+    REQUIRE(messageOut == std::vector<uint8_t>({0, 0, 0, 3, 1, 2, 3}));
     ws->close(); // hmmm... shouldn't this be RAII?
 }
 
