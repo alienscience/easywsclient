@@ -11,7 +11,9 @@
 #include <utility>
 #include <iostream>
 #include <sstream>
-#include <gtest/gtest.h>
+
+#define CATCH_CONFIG_RUNNER
+#include "catch.hpp"
 
 using easywsclient::WebSocket;
 
@@ -67,7 +69,7 @@ std::string makeString(size_t length)
 
 }
 
-TEST(easywsclient, textFramesWork)
+TEST_CASE("Text Frames Work")
 {
 
     std::unique_ptr<WebSocket> ws(WebSocket::from_url("ws://localhost:8123/echoWithSize"));
@@ -85,11 +87,11 @@ TEST(easywsclient, textFramesWork)
             break;
         }
     }
-    ASSERT_EQ("4\nfour", message);
+    REQUIRE(message == "4\nfour");
     ws->close(); // hmmm... shouldn't this be RAII?
 }
 
-TEST(easywsclient, longTextFramesWork)
+TEST_CASE("Long Text Frames Work")
 {
     std::unique_ptr<WebSocket> ws(WebSocket::from_url("ws://localhost:8123/echoWithSize"));
     assert(ws);
@@ -128,12 +130,12 @@ TEST(easywsclient, longTextFramesWork)
                 break;
             }
         }
-        ASSERT_EQ(i->first + "\n" + i->second, message);
+        REQUIRE(message == (i->first + "\n" + i->second) );
     }
     ws->close(); // hmmm... shouldn't this be RAII?
 }
 
-TEST(easywsclient, binaryFramesWork)
+TEST_CASE("Binary Frames Work")
 {
     std::unique_ptr<WebSocket> ws(WebSocket::from_url("ws://localhost:8123/binaryEchoWithSize"));
     assert(ws);
@@ -150,7 +152,7 @@ TEST(easywsclient, binaryFramesWork)
             break;
         }
     }
-    ASSERT_EQ(std::vector<uint8_t>({0, 0, 0, 3, 1, 2, 3}), message);
+    REQUIRE(message == std::vector<uint8_t>({0, 0, 0, 3, 1, 2, 3}));
     ws->close(); // hmmm... shouldn't this be RAII?
 }
 
@@ -160,6 +162,5 @@ int main(int argc, char **argv)
     WSAInit wsaInit;
 #endif
     KillServer killServer; // RAII to ensure server gets terminated when tests terminate
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    return Catch::Session().run(argc, argv);
 }
