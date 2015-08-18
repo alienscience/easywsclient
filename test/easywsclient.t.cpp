@@ -44,16 +44,26 @@ class KillServer
   public:
     KillServer() : d_ws(WebSocket::from_url("ws://localhost:8123/killServer"))
     {
-        assert(d_ws);
+	if (d_ws) {
+            connected = true;
+        }
     }
     ~KillServer()
     {
-        d_ws->send("exit"); // sending any message instructs the server to die
-        d_ws->poll();
-        d_ws->poll();
+	if (d_ws) {
+            d_ws->send("exit"); // sending any message instructs the server to die
+            d_ws->poll();
+            d_ws->poll();
+        }
+    }
+
+    bool isConnected()
+    {
+	return connected;
     }
   private:
     std::unique_ptr<WebSocket> d_ws;
+    bool connected;
 };
 
 std::string makeString(size_t length)
@@ -162,5 +172,9 @@ int main(int argc, char **argv)
     WSAInit wsaInit;
 #endif
     KillServer killServer; // RAII to ensure server gets terminated when tests terminate
+    if (!killServer.isConnected()) {
+        std::cerr << "Cannot connect to test server. Stopping" << std::endl;
+	return 1;
+    }
     return Catch::Session().run(argc, argv);
 }
