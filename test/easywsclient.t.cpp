@@ -42,11 +42,10 @@ class WSAInit
 class KillServer
 {
   public:
-    KillServer() : d_ws(WebSocket::from_url("ws://localhost:8123/killServer"))
+    KillServer() :
+        d_ws(WebSocket::from_url("ws://localhost:8123/killServer")),
+        connected(bool(d_ws))
     {
-	if (d_ws) {
-            connected = true;
-        }
     }
     ~KillServer()
     {
